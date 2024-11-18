@@ -9,13 +9,13 @@ import pandas as pd
 import engine.engine as engine
 import train as train
 
-from bots.ppo import PPO
+from bots.ppo_2 import PPO
 from bots.randbot import RandBot
 
 
 if __name__ == "__main__":
     # Map for training the bot. This can be one map or a list of maps that will 
-    cfg_files_train = ["./maps/map_23x43_1.txt", "./maps/map_23x43_2.txt", "./maps/map_23x43_3.txt"] 
+    cfg_files_train = ["./maps/mapfinal.txt","./maps/map_train_1.txt","./maps/mapfinal.txt","./maps/map_23x43_2.txt","./maps/mapfinal.txt","./maps/map_23x43_3.txt"] 
     # Map for evaluating the bot.
     cfg_file_eval = "./maps/map_23x43_1.txt"
 
@@ -26,10 +26,18 @@ if __name__ == "__main__":
     TRAIN = True # Whether to run training or evaluation
     NUM_ENVS = 1 # Number of games to run at once. 
     MAX_EVALUATION_ROUNDS = 1000 # Number of rounds in a game to evaluate the bot.
-    USE_SAVED_MODEL = False # Whether to start training or evaluation from a previously saved model.
+    USE_SAVED_MODEL = True # Whether to start training or evaluation from a previously saved model.
     MODEL_FILENAME = "ppo_mlp_test.pth" # Name of saved model to start training from and/or to save model to during training.
-    STATE_MAPS = False # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
+    STATE_MAPS = True # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
     
+    NUM_EPISODES = 100  # Incrementar el número de episodios para entrenar más a fondo.
+    MAX_AGENT_UPDATES = 5  # Aumentar el número de actualizaciones del agente por episodio.
+    NUM_STEPS_POLICY_UPDATE = 40  # Incrementar los pasos de actualización para una mayor estabilidad.
+    NUM_ENVS = 40  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
+    MAX_EVALUATION_ROUNDS = 1000  # Evaluar durante más rondas para obtener una evaluación precisa.
+    USE_SAVED_MODEL = True  # Entrenar desde cero o cambiar a True si tienes un modelo preentrenado.
+    MODEL_FILENAME = "ppo_mlp_long_training.pth"  # Cambiar el nombre del archivo para el modelo entrenado.
+    STATE_MAPS = True  # Mantener si tu entrada son mapas.
 
     #######################################################################
     # Total number of rounds = MAX_AGENT_UPATES * NUM_STEPS_POLICY_UPDATE #
@@ -44,6 +52,27 @@ if __name__ == "__main__":
              model_filename = MODEL_FILENAME,
              use_saved_model=USE_SAVED_MODEL), RandBot(), 
              PPO(state_maps=STATE_MAPS,
+             num_envs=NUM_ENVS,
+             num_steps=NUM_STEPS_POLICY_UPDATE,
+             num_updates=MAX_TOTAL_UPDATES,
+             train=TRAIN,
+             model_filename = MODEL_FILENAME,
+             use_saved_model=USE_SAVED_MODEL),
+            PPO(state_maps=STATE_MAPS,
+             num_envs=NUM_ENVS,
+             num_steps=NUM_STEPS_POLICY_UPDATE,
+             num_updates=MAX_TOTAL_UPDATES,
+             train=TRAIN,
+             model_filename = MODEL_FILENAME,
+             use_saved_model=USE_SAVED_MODEL),
+            PPO(state_maps=STATE_MAPS,
+             num_envs=NUM_ENVS,
+             num_steps=NUM_STEPS_POLICY_UPDATE,
+             num_updates=MAX_TOTAL_UPDATES,
+             train=TRAIN,
+             model_filename = MODEL_FILENAME,
+             use_saved_model=USE_SAVED_MODEL),
+            PPO(state_maps=STATE_MAPS,
              num_envs=NUM_ENVS,
              num_steps=NUM_STEPS_POLICY_UPDATE,
              num_updates=MAX_TOTAL_UPDATES,
@@ -80,3 +109,4 @@ if __name__ == "__main__":
 
         os.makedirs('./artifacts/outputs', exist_ok=True)
         final_scores.to_csv(f'./artifacts/outputs/{MODEL_FILENAME}.csv', index_label='episode')
+        bots[0].save_trained_model()

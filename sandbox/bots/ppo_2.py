@@ -177,7 +177,7 @@ class PPO(bot.Bot):
         super().__init__()
         self.NAME = "PPO"
         self.gamma = 0.90 # Discount factor
-        self.learning_rate = 0.001 # Learning rate
+        self.learning_rate = 0.01 # Learning rate
         self.anneal_lr = True #learning rate annealing for policy and value networks
         self.gae = True # Use GAE for advantage computation
         self.gae_lambda = 0.95 # lambda for the general advantage estimation
@@ -501,27 +501,32 @@ class PPO(bot.Bot):
             # 1. Movimientos
             # ------------------
             if ACTIONS[action[i]] not in ["attack", "connect", "pass"]:
-                # Convertir la vista a un array de NumPy si no lo es
-                view_array = np.array(state[i]['view'])
+                # Convertir vista a array de NumPy
+                try:
+                    view_array = np.array(state[i]['view'])
+                except Exception as e:
+                    print(f"Error al convertir la vista: {e}")
+                    view_array = np.zeros((0, 0))  # Fallback si falla
 
-
-                # Obtener las coordenadas del movimiento
+                # Coordenadas de movimiento
                 dx, dy = ACTIONS[action[i]]
                 new_x, new_y = cx + dx, cy + dy
-                # Registrar la acción
-                actions_list.append(self.move(dx, dy))
-                reward -= 0.0  # Penalización reducida por movimiento básico
-                if any(lh['position'] == (cx, cy) for lh in state[i]['lighthouses']):
-                    reward += 3.0  # Recompensa adicional si se mueve a un faro
-                else:
-                    try:
-                        # Obtener la energía de la celda de destino
-                        cell_energy = view_array[new_x, new_y]
-                        # Agregar recompensa proporcional a la energía de la celda
-                        reward += cell_energy
-                    except:
-                        reward-=5
 
+                if 0 <= new_x <= 43 and 0 <= new_y <= 23:
+                    # Recompensa por energía de la celda
+                    cell_energy = view_array[dx, dy]
+                    reward += cell_energy*0.25
+                else:
+                    # Penalización por moverse fuera de los límites
+                    reward -= 2
+
+                # Registrar acción y aplicar penalización leve por moverse
+                actions_list.append(self.move(dx, dy))
+                reward -= 0.1  # Penalización leve por moverse
+
+                # Recompensa adicional si se mueve a un faro
+                if any(lh['position'] == (new_x, new_y) for lh in state[i]['lighthouses']):
+                    reward += 3.0
             elif ACTIONS[action[i]] == "pass":
                 reward =-10
 
@@ -569,7 +574,7 @@ class PPO(bot.Bot):
             previous_controlled = state[i].get('previous_controlled', [])
             current_controlled = [lh['position'] for lh in controlled_lighthouses]
             lost_lighthouses = set(previous_controlled) - set(current_controlled)
-            reward -= 5.0 * len(lost_lighthouses)  # Penalización por cada faro perdido
+            reward -= 10.0 * len(lost_lighthouses)  # Penalización por cada faro perdido
 
             # Guardar recompensas
             if self.train:

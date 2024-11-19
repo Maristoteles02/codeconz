@@ -54,30 +54,57 @@ class Interface(object):
 
     def get_state(self, player, i):
         # Lighthouses info extraction
-        lighthouses = []
-        for lh in self.game[i].lighthouses.values():
-            connections = [next(l for l in c if l is not lh.pos)
-                            for c in self.game[i].conns if lh.pos in c]
-            lighthouses.append({
-                "position": lh.pos,
-                "owner": lh.owner,
-                "energy": lh.energy,
-                "connections": connections,
-                "have_key": lh.pos in player.keys,
-            })
+        try:
+            lighthouses = []
+            for lh in self.game[i].lighthouses.values():
+                connections = [next(l for l in c if l is not lh.pos)
+                                for c in self.game[i].conns if lh.pos in c]
+                lighthouses.append({
+                    "position": lh.pos,
+                    "owner": lh.owner,
+                    "energy": lh.energy,
+                    "connections": connections,
+                    "have_key": lh.pos in player.keys,
+                })
 
-        # Extract the fields for calculating the state
-        player_view = self.game[i].island.get_view(player.pos)
+            # Extract the fields for calculating the state
+            player_view = self.game[i].island.get_view(player.pos)
 
-        state =  {
-            "position": player.pos,
-            "score": player.score,
-            "energy": player.energy,
-            "view": player_view,
-            "lighthouses": lighthouses
-        }
+            state =  {
+                "position": player.pos,
+                "score": player.score,
+                "energy": player.energy,
+                "view": player_view,
+                "lighthouses": lighthouses
+            }
 
-        return state
+            return state
+        except: 
+            # Lighthouses info extraction
+            lighthouses = []
+            for lh in self.game[0].lighthouses.values():  # Cambiar i por 0 ya que solo hay un juego
+                connections = [next(l for l in c if l is not lh.pos)
+                            for c in self.game[0].conns if lh.pos in c]
+                lighthouses.append({
+                    "position": lh.pos,
+                    "owner": lh.owner,
+                    "energy": lh.energy,
+                    "connections": connections,
+                    "have_key": lh.pos in player.keys,
+                })
+
+            # Extract the fields for calculating the state
+            player_view = self.game[0].island.get_view(player.pos)
+
+            state = {
+                "position": player.pos,
+                "score": player.score,
+                "energy": player.energy,
+                "view": player_view,
+                "lighthouses": lighthouses
+            }
+
+            return state
 
     
     def estimate_reward(self, action, state, next_state, player, status, scores, i):
@@ -223,9 +250,14 @@ class Interface(object):
             
                 policy_loss = pd.DataFrame()
                 policy_loss[str(bot.player_num)] = bot.policy_loss_list
-            
-                bot.save_trained_model()
-    
+            # Identificar el mejor bot
+            best_bot = max(self.bots, key=lambda bot: max(bot.scores[-1]))  # Mejor bot según puntuación
+
+            # Guardar modelo del mejor bot
+            best_bot_model_path = os.path.join('./artifacts/models', f'ppo_mlp_long_training.pth')
+            best_bot.save_trained_model()
+            print(f"Mejor modelo guardado en el episodio {update}: {best_bot_model_path}")
+
     def run(self, max_rounds=None):
         # Function for evaluating the bot
         game_view = [view.GameView(self.game[i]) for i in range(len(self.game))]

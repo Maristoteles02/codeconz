@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+import json
+import torch
 
 from distutils.util import strtobool
 
@@ -74,7 +75,13 @@ class AgentMLP(nn.Module):
             nn.Dropout(0.2),  # Dropout para reducir el sobreajuste
             layer_init(nn.Linear(128, 128)),
             nn.Tanh(),
-            layer_init(nn.Linear(128, 1), std=1.0)
+            layer_init(nn.Linear(128, 256)),
+            nn.Tanh(),
+            nn.Dropout(0.2),  # Dropout para reducir el sobreajuste
+            layer_init(nn.Linear(256, 64)),
+            nn.Tanh(),
+            nn.Dropout(0.2),  # Dropout para reducir el sobreajuste
+            layer_init(nn.Linear(64, 1), std=1.0)
         )
         
         # Red Actor con más capacidad
@@ -83,7 +90,11 @@ class AgentMLP(nn.Module):
             nn.ReLU(),
             layer_init(nn.Linear(128, 128)),
             nn.ReLU(),
-            layer_init(nn.Linear(128, a_size), std=0.01)
+            layer_init(nn.Linear(128, 256)),
+            nn.ReLU(),
+            layer_init(nn.Linear(256, 64)),
+            nn.ReLU(),
+            layer_init(nn.Linear(64, a_size), std=0.01)
         )
 
     def get_value(self, x):
@@ -166,7 +177,7 @@ class PPO(bot.Bot):
         super().__init__()
         self.NAME = "PPO"
         self.gamma = 0.90 # Discount factor
-        self.learning_rate = 2.5e-4 # Learning rate
+        self.learning_rate = 0.001 # Learning rate
         self.anneal_lr = True #learning rate annealing for policy and value networks
         self.gae = True # Use GAE for advantage computation
         self.gae_lambda = 0.95 # lambda for the general advantage estimation
@@ -214,6 +225,8 @@ class PPO(bot.Bot):
     # Initialize agent, optimizer and buffer
     def initialize_game(self, state):
         self.saved_log_probs = []
+
+
         if self.state_maps:
             print("Using maps for state: PolicyCNN")
             state = [self.convert_state_cnn(state[i], i) for i in range(len(state))]
@@ -229,6 +242,8 @@ class PPO(bot.Bot):
         if self.train:
             self.initialize_buffer_and_variables()
             self.optimizer = optim.Adam(self.agent.parameters(), lr=self.learning_rate)
+        #if self.train and self.update == 0:
+            #self.pretrain_with_randbot_data()
         if self.use_saved_model:
             self.load_saved_model()
     
@@ -251,7 +266,9 @@ class PPO(bot.Bot):
         if self.anneal_lr:
             frac = 1.0 - (self.update - 1.0) / self.num_updates
             lrnow = frac * self.learning_rate
-            self.optimizer.param_groups[0]["lr"] = lrnow
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lrnow
+
     
     def convert_state_mlp(self, state):
         # Create array for view data
@@ -394,6 +411,45 @@ class PPO(bot.Bot):
 
         return new_state
 
+
+    def pretrain_with_randbot_data(self, data_file="randbot_data.json"):
+        """Carga los datos generados por RandBot y entrena el modelo PPO con ellos."""
+        print(f"Cargando datos de {data_file} para pre-entrenamiento...")
+        with open(data_file, "r") as f:
+            data = json.load(f)
+
+        for entry in data:
+            state = entry["state"]
+            action = entry["action"]
+
+            # Convertir el estado y la acción a tensores
+            if self.state_maps:
+                new_state = self.convert_state_cnn(state, 0)
+                new_state = torch.from_numpy(new_state).float().unsqueeze(0).to(self.device)
+            else:
+                new_state = torch.tensor(self.convert_state_mlp(state)).float().unsqueeze(0).to(self.device)
+
+            action_idx = self.action_to_index(action)
+            action_tensor = torch.tensor([action_idx]).to(self.device)
+
+            # Obtener la acción y el valor del modelo
+            _, log_prob, _, value = self.agent.get_action_and_value(new_state, action_tensor)
+
+            # Simular una recompensa fija
+            reward = torch.tensor([0.5]).to(self.device)
+
+            # Actualizar buffers
+            self.obs[0] = new_state
+            self.actions[0] = action_tensor
+            self.rewards[0] = reward
+            self.logprobs[0] = log_prob
+            self.values[0] = value.flatten()
+
+            # Realizar una optimización usando estos datos
+            self.optimize_model([(state, action, reward, state)])
+
+        print("Pre-entrenamiento completado.")
+
     
     def valid_lighthouse_connections(self, state):
         # Check if exist possible lighthouse connections
@@ -414,14 +470,17 @@ class PPO(bot.Bot):
         if self.train:
             self.global_step += 1 * self.num_envs
         actions_list = []
+        
         if self.state_maps:
             new_state = [self.convert_state_cnn(state[i], i) for i in range(len(state))]
-            new_state = np.transpose(new_state, (0,3,1,2))
+            new_state = np.transpose(new_state, (0, 3, 1, 2))
         else:
             new_state = [self.convert_state_mlp(state[i]) for i in range(len(state))]
-        new_state = torch.from_numpy(np.array(new_state)).float().to(device) 
+        new_state = torch.from_numpy(np.array(new_state)).float().to(device)
+        
         if self.train:
             self.obs[step] = new_state
+        
         with torch.no_grad():
             action, log_prob, _, value = self.agent.get_action_and_value(new_state)
             if self.train:
@@ -429,41 +488,96 @@ class PPO(bot.Bot):
                 self.values[step] = value.flatten()
                 self.actions[step] = action
                 self.logprobs[step] = log_prob
+
+        # Loop para cada agente
         for i in range(len(action)):
-            # Move
-            if ACTIONS[action[i]] != "attack" and ACTIONS[action[i]] != "connect" and ACTIONS[action[i]] != "pass":
-                actions_list.append(self.move(*ACTIONS[action[i]]))
-                self.rewards[step, i] -= 1.0  # Incrementa la recompensa aquí
-            # Pass
-            elif ACTIONS[action[i]] == "pass":
-                actions_list.append(self.nop())
-            # Attack
-            elif ACTIONS[action[i]] == "attack":
-                actions_list.append(self.attack(state[i]['energy']))
-                # Incrementar la recompensa si se realiza una conexión con éxito
-                if self.train:
-                    self.rewards[step, i] += 5.0  # Incrementa la recompensa aquí
-            # Connect
-            elif ACTIONS[action[i]] == "connect":
-                # TODO: improve selection of lighthouse connection, right now uses function to select them
-                possible_connections = self.valid_lighthouse_connections(state[i])
-                if not possible_connections:
-                    actions_list.append(self.nop()) #pass the turn
-                else: 
-                    actions_list.append(self.connect(random.choice(possible_connections)))
-                    print("-"*20)
-                    print('connected :)')
-                    print("-"*20)
-                    if self.train:
-                        self.rewards[step, i] += 120.0  # Incrementa la recompensa aquí
-            # Verificar si el bot está encima de un faro y otorgar una recompensa adicional
+            reward = 0.0
+            # Extraer la información del estado
             cx, cy = state[i]['position']
             lighthouses = {tuple(lh['position']): lh for lh in state[i]['lighthouses']}
-            if (cx, cy) in lighthouses:
-                if self.train:
-                    self.rewards[step, i] += 1.0  # Recompensa adicional por estar encima de un faro
+            controlled_lighthouses = [lh for lh in state[i]['lighthouses'] if lh['owner'] == self.player_num]
 
+            # ------------------
+            # 1. Movimientos
+            # ------------------
+            if ACTIONS[action[i]] not in ["attack", "connect", "pass"]:
+                # Convertir la vista a un array de NumPy si no lo es
+                view_array = np.array(state[i]['view'])
+
+
+                # Obtener las coordenadas del movimiento
+                dx, dy = ACTIONS[action[i]]
+                new_x, new_y = cx + dx, cy + dy
+                # Registrar la acción
+                actions_list.append(self.move(dx, dy))
+                reward -= 0.0  # Penalización reducida por movimiento básico
+                if any(lh['position'] == (cx, cy) for lh in state[i]['lighthouses']):
+                    reward += 3.0  # Recompensa adicional si se mueve a un faro
+                else:
+                    try:
+                        # Obtener la energía de la celda de destino
+                        cell_energy = view_array[new_x, new_y]
+                        # Agregar recompensa proporcional a la energía de la celda
+                        reward += cell_energy
+                    except:
+                        reward-=5
+
+            elif ACTIONS[action[i]] == "pass":
+                reward =-10
+
+            # ------------------
+            # 2. Conectar Faros
+            # ------------------
+            elif ACTIONS[action[i]] == "connect":
+                possible_connections = self.valid_lighthouse_connections(state[i])
+                print("trying_to_connect...")
+                if possible_connections:
+                    actions_list.append(self.connect(random.choice(possible_connections)))
+                    reward += 220.0  # Recompensa base
+                    # Bonificación por conectar faros estratégicos
+                    if len(controlled_lighthouses) > 1:
+                        reward += 400.0  # Recompensa adicional si tiene muchos faros conectados
+                else:
+                    actions_list.append(self.nop())
+
+            # ------------------
+            # 3. Ataque
+            # ------------------
+            elif ACTIONS[action[i]] == "attack":
+                actions_list.append(self.attack(state[i]['energy']))
+                print("attacking...")
+                if len(controlled_lighthouses) > 0:
+                    print("player with at least 1 lh")
+                    reward += 150.0  # Bonificación si protege un faro controlado
+                reward += 15.0  # Recompensa fija por atacar
+
+            # ------------------
+            # 4. Recompensa por Control de Faros
+            # ------------------
+            for lh in controlled_lighthouses:
+                reward += 4.0  # Recompensa por cada faro controlado
+
+            # ------------------
+            # 5. Exploración
+            # ------------------
+            if 'visited' in state[i] and not state[i]['visited'][cx][cy]:
+                reward += 0.1  # Incentivar la exploración de nuevas casillas
+
+            # ------------------
+            # 6. Penalización si se pierde un faro controlado
+            # ------------------
+            previous_controlled = state[i].get('previous_controlled', [])
+            current_controlled = [lh['position'] for lh in controlled_lighthouses]
+            lost_lighthouses = set(previous_controlled) - set(current_controlled)
+            reward -= 5.0 * len(lost_lighthouses)  # Penalización por cada faro perdido
+
+            # Guardar recompensas
+            if self.train:
+                self.rewards[step, i] = reward
+                print(reward)
+        
         return actions_list
+
 
     def calculate_advantage(self, next_obs):
             # bootstrap value if not done

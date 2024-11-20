@@ -177,7 +177,7 @@ class PPO(bot.Bot):
         super().__init__()
         self.NAME = "PPO"
         self.gamma = 0.90 # Discount factor
-        self.learning_rate = 0.01 # Learning rate
+        self.learning_rate = 0.0001 # Learning rate
         self.anneal_lr = True #learning rate annealing for policy and value networks
         self.gae = True # Use GAE for advantage computation
         self.gae_lambda = 0.95 # lambda for the general advantage estimation
@@ -489,99 +489,98 @@ class PPO(bot.Bot):
                 self.actions[step] = action
                 self.logprobs[step] = log_prob
 
-        # Loop para cada agente
         for i in range(len(action)):
             reward = 0.0
-            # Extraer la información del estado
             cx, cy = state[i]['position']
             lighthouses = {tuple(lh['position']): lh for lh in state[i]['lighthouses']}
             controlled_lighthouses = [lh for lh in state[i]['lighthouses'] if lh['owner'] == self.player_num]
 
             # ------------------
-            # 1. Movimientos
+            # Movimientos Estratégicos
             # ------------------
             if ACTIONS[action[i]] not in ["attack", "connect", "pass"]:
-                # Convertir vista a array de NumPy
-                try:
-                    view_array = np.array(state[i]['view'])
-                except Exception as e:
-                    print(f"Error al convertir la vista: {e}")
-                    view_array = np.zeros((0, 0))  # Fallback si falla
-
-                # Coordenadas de movimiento
                 dx, dy = ACTIONS[action[i]]
                 new_x, new_y = cx + dx, cy + dy
 
-                if 0 <= new_x <= 43 and 0 <= new_y <= 23:
-                    # Recompensa por energía de la celda
-                    cell_energy = view_array[dx, dy]
-                    reward += cell_energy*0.25
+                if 0 <= new_x < 43 and 0 <= new_y < 23:
+                    # Premiar moverse hacia faros
+                    if any(lh["position"] == (new_x, new_y) for lh in state[i]["lighthouses"]):
+                        reward += 20.0  # Incentivo estratégico
+                    # Premiar moverse a casillas con energía
+                    cell_energy = state[i]["view"][dx + 3][dy + 3]
+                    reward += cell_energy * 0.5
                 else:
-                    # Penalización por moverse fuera de los límites
-                    reward -= 2
+                    reward -= 10.0  # Penalización por salir de la isla
 
-                # Registrar acción y aplicar penalización leve por moverse
                 actions_list.append(self.move(dx, dy))
                 reward -= 0.1  # Penalización leve por moverse
 
-                # Recompensa adicional si se mueve a un faro
-                if any(lh['position'] == (new_x, new_y) for lh in state[i]['lighthouses']):
-                    reward += 3.0
-            elif ACTIONS[action[i]] == "pass":
-                reward =-10
-
             # ------------------
-            # 2. Conectar Faros
+            # Conexión de Faros
             # ------------------
             elif ACTIONS[action[i]] == "connect":
                 possible_connections = self.valid_lighthouse_connections(state[i])
-                print("trying_to_connect...")
                 if possible_connections:
-                    actions_list.append(self.connect(random.choice(possible_connections)))
-                    reward += 220.0  # Recompensa base
-                    # Bonificación por conectar faros estratégicos
-                    if len(controlled_lighthouses) > 1:
-                        reward += 400.0  # Recompensa adicional si tiene muchos faros conectados
+                    destination = random.choice(possible_connections)
+                    actions_list.append(self.connect(destination))
+                    reward += 300.0  # Recompensa base
+                    if len(controlled_lighthouses) >= 2:
+                        reward += 500.0  # Bonificación por triángulo
+                    reward += 50.0 * len(controlled_lighthouses)  # Incremento estratégico
                 else:
                     actions_list.append(self.nop())
+                    reward -= 50.0  # Penalización por no conectar
 
             # ------------------
-            # 3. Ataque
+            # Ataque a Faros
             # ------------------
             elif ACTIONS[action[i]] == "attack":
                 actions_list.append(self.attack(state[i]['energy']))
-                print("attacking...")
-                if len(controlled_lighthouses) > 0:
-                    print("player with at least 1 lh")
-                    reward += 150.0  # Bonificación si protege un faro controlado
-                reward += 15.0  # Recompensa fija por atacar
+                if controlled_lighthouses:
+                    reward += 150.0  # Bonificación por proteger faros
+                reward += 15.0  # Incentivo base
 
             # ------------------
-            # 4. Recompensa por Control de Faros
+            # Pasar Turno
+            # ------------------
+            elif ACTIONS[action[i]] == "pass":
+                reward -= 30.0  # Penalización por inacción
+
+            # ------------------
+            # Control de Faros
             # ------------------
             for lh in controlled_lighthouses:
-                reward += 4.0  # Recompensa por cada faro controlado
+                reward += 10.0  # Recompensa continua por cada faro
 
-            # ------------------
-            # 5. Exploración
-            # ------------------
-            if 'visited' in state[i] and not state[i]['visited'][cx][cy]:
-                reward += 0.1  # Incentivar la exploración de nuevas casillas
-
-            # ------------------
-            # 6. Penalización si se pierde un faro controlado
-            # ------------------
+            # Penalización por perder faros
             previous_controlled = state[i].get('previous_controlled', [])
             current_controlled = [lh['position'] for lh in controlled_lighthouses]
             lost_lighthouses = set(previous_controlled) - set(current_controlled)
-            reward -= 10.0 * len(lost_lighthouses)  # Penalización por cada faro perdido
+            reward -= 20.0 * len(lost_lighthouses)
 
-            # Guardar recompensas
+            # ------------------
+            # Triángulos
+            # ------------------
+            for lh1 in controlled_lighthouses:
+                for lh2 in lh1["connections"]:
+                    for lh3 in lh2["connections"]:
+                        area = calculate_triangle_area(lh1["position"], lh2["position"], lh3["position"])
+                        reward += area * 2.0  # Recompensa proporcional al área
+
+            # ------------------
+            # Exploración
+            # ------------------
+            if 'visited' in state[i] and not state[i]['visited'][cx][cy]:
+                reward += 0.1  # Incentivo por nuevas casillas
+
+            # Normalización y Guardado de Recompensas
+            reward = np.clip(reward, -1000, 1000)
             if self.train:
                 self.rewards[step, i] = reward
-                print(reward)
-        
+            print(f"Turno {step}, Acción: {ACTIONS[action[i]]}, Recompensa: {reward}")
+
         return actions_list
+
 
 
     def calculate_advantage(self, next_obs):

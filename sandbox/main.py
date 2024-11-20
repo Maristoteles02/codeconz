@@ -116,8 +116,8 @@ if __name__ == "__main__":
     
     NUM_EPISODES = 1000  # Incrementar el número de episodios para entrenar más a fondo.
     MAX_AGENT_UPDATES = 3  # Aumentar el número de actualizaciones del agente por episodio.
-    NUM_STEPS_POLICY_UPDATE = 200  # Incrementar los pasos de actualización para una mayor estabilidad.
-    NUM_ENVS = 20  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
+    NUM_STEPS_POLICY_UPDATE = 128  # Incrementar los pasos de actualización para una mayor estabilidad.
+    NUM_ENVS = 6  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
     MAX_EVALUATION_ROUNDS = 1000  # Evaluar durante más rondas para obtener una evaluación precisa.
     USE_SAVED_MODEL = True #Entrenar desde cero o cambiar a True si tienes un modelo preentrenado.
     MODEL_FILENAME = "ppo_mlp_long_training.pth"  # Cambiar el nombre del archivo para el modelo entrenado.

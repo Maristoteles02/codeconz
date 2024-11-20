@@ -187,7 +187,7 @@ class PPO(bot.Bot):
         self.clip_coef = 0.2 # the surrogate clipping coefficient
         self.clip_vloss = True # whether or not to use a clipped loss for the value function, as per the paper
         self.ent_coef = 0.05 # coefficient of the entropy
-        self.vf_coef = 0.5 # coefficient of the value function
+        self.vf_coef = 0.6 # coefficient of the value function
         self.max_grad_norm = 0.5 # maximum norm for the gradient clipping
         self.target_kl = None # the target KL divergence threshold
         self.num_envs = num_envs
@@ -511,7 +511,7 @@ class PPO(bot.Bot):
 
                     # Premiar moverse a casillas con energía
                     cell_energy = state[i]["view"][dx + 3][dy + 3]
-                    reward += cell_energy * 0.5
+                    reward += cell_energy * 0.10
                 else:
                     reward -= 10.0  # Penalización por salir de la isla
 
@@ -530,6 +530,9 @@ class PPO(bot.Bot):
             # Conexión de Faros
             # ------------------
             elif ACTIONS[action[i]] == "connect":
+                if (cx,cy) in lighthouses:
+                    current_lighthouses = lighthouses[(cx,cy)]
+                    reward*= 120
                 possible_connections = self.valid_lighthouse_connections(state[i])
                 if possible_connections:
                     destination = random.choice(possible_connections)
@@ -575,7 +578,8 @@ class PPO(bot.Bot):
             reward = np.clip(reward, -1000, 1000)
             if self.train:
                 self.rewards[step, i] = reward
-            print(f"Turno {step}, Acción: {ACTIONS[action[i]]}, Recompensa: {reward}")
+            if ACTIONS[action[i]] in ('connect','attack'):  
+                print(f"Turno {step}, Acción: {ACTIONS[action[i]]}, Recompensa: {reward}")
 
         return actions_list
 

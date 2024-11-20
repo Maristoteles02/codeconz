@@ -62,6 +62,7 @@ def generate_randbot_data(num_episodes=10, num_steps=50, output_file="randbot_da
     bots[0].save_data(output_file)
 
 if __name__ == "__main__":
+    os.environ["SDL_VIDEODRIVER"] = "dummy"  # Evita la creación de la ventana gráfica
     #generate_randbot_data(num_episodes=10, num_steps=50)
     # Directorio donde se encuentran los mapas generados
     map_dir = "./maps"
@@ -114,10 +115,10 @@ if __name__ == "__main__":
     MODEL_FILENAME = "ppo_mlp_test.pth" # Name of saved model to start training from and/or to save model to during training.
     STATE_MAPS = True # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
     
-    NUM_EPISODES = 1000  # Incrementar el número de episodios para entrenar más a fondo.
-    MAX_AGENT_UPDATES = 3  # Aumentar el número de actualizaciones del agente por episodio.
+    NUM_EPISODES = 10  # Incrementar el número de episodios para entrenar más a fondo.
+    MAX_AGENT_UPDATES = 10  # Aumentar el número de actualizaciones del agente por episodio.
     NUM_STEPS_POLICY_UPDATE = 128  # Incrementar los pasos de actualización para una mayor estabilidad.
-    NUM_ENVS = 6  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
+    NUM_ENVS = 15  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
     MAX_EVALUATION_ROUNDS = 1000  # Evaluar durante más rondas para obtener una evaluación precisa.
     USE_SAVED_MODEL = True #Entrenar desde cero o cambiar a True si tienes un modelo preentrenado.
     MODEL_FILENAME = "ppo_mlp_long_training.pth"  # Cambiar el nombre del archivo para el modelo entrenado.

@@ -503,14 +503,25 @@ class PPO(bot.Bot):
                 new_x, new_y = cx + dx, cy + dy
 
                 if 0 <= new_x < 43 and 0 <= new_y < 23:
-                    # Premiar moverse hacia faros
-                    if any(lh["position"] == (new_x, new_y) for lh in state[i]["lighthouses"]):
-                        reward += 20.0  # Incentivo estratégico
+                    # Premiar moverse hacia faros no controlados
+                    for lh in state[i]['lighthouses']:
+                        if lh['owner'] != self.player_num:
+                            distance = abs(cx - lh['position'][0]) + abs(cy - lh['position'][1])
+                            reward += max(0, 10 - distance)  # Incentivo por acercarse
+
                     # Premiar moverse a casillas con energía
                     cell_energy = state[i]["view"][dx + 3][dy + 3]
                     reward += cell_energy * 0.5
                 else:
                     reward -= 10.0  # Penalización por salir de la isla
+
+                # Penalización por quedarse quieto
+                if dx == 0 and dy == 0:
+                    reward -= 10.0
+
+                # Penalización por moverse en bucle
+                if 'last_position' in state[i] and state[i]['last_position'] == (new_x, new_y):
+                    reward -= 5.0
 
                 actions_list.append(self.move(dx, dy))
                 reward -= 0.1  # Penalización leve por moverse
@@ -526,7 +537,7 @@ class PPO(bot.Bot):
                     reward += 300.0  # Recompensa base
                     if len(controlled_lighthouses) >= 2:
                         reward += 500.0  # Bonificación por triángulo
-                    reward += 50.0 * len(controlled_lighthouses)  # Incremento estratégico
+                    reward += 50.0 * len(controlled_lighthouses)
                 else:
                     actions_list.append(self.nop())
                     reward -= 50.0  # Penalización por no conectar
@@ -537,49 +548,37 @@ class PPO(bot.Bot):
             elif ACTIONS[action[i]] == "attack":
                 actions_list.append(self.attack(state[i]['energy']))
                 if controlled_lighthouses:
-                    reward += 150.0  # Bonificación por proteger faros
-                reward += 15.0  # Incentivo base
-
-            # ------------------
-            # Pasar Turno
-            # ------------------
-            elif ACTIONS[action[i]] == "pass":
-                reward -= 30.0  # Penalización por inacción
+                    reward += 150.0
+                reward += 15.0
+                if any(lh['position'] == (cx, cy) for lh in state[i]['lighthouses']):
+                    faro_actual = next(lh for lh in state[i]['lighthouses'] if lh['position'] == (cx, cy))
+                    if faro_actual['owner'] != self.player_num:
+                        reward += 100.0  # Recompensa por capturar faro
 
             # ------------------
             # Control de Faros
             # ------------------
             for lh in controlled_lighthouses:
-                reward += 10.0  # Recompensa continua por cada faro
+                reward += 10.0  # Recompensa por mantener faros
 
-            # Penalización por perder faros
             previous_controlled = state[i].get('previous_controlled', [])
             current_controlled = [lh['position'] for lh in controlled_lighthouses]
             lost_lighthouses = set(previous_controlled) - set(current_controlled)
             reward -= 20.0 * len(lost_lighthouses)
 
             # ------------------
-            # Triángulos
-            # ------------------
-            for lh1 in controlled_lighthouses:
-                for lh2 in lh1["connections"]:
-                    for lh3 in lh2["connections"]:
-                        area = calculate_triangle_area(lh1["position"], lh2["position"], lh3["position"])
-                        reward += area * 2.0  # Recompensa proporcional al área
-
-            # ------------------
             # Exploración
             # ------------------
             if 'visited' in state[i] and not state[i]['visited'][cx][cy]:
-                reward += 0.1  # Incentivo por nuevas casillas
+                reward += 0.1
 
-            # Normalización y Guardado de Recompensas
             reward = np.clip(reward, -1000, 1000)
             if self.train:
                 self.rewards[step, i] = reward
             print(f"Turno {step}, Acción: {ACTIONS[action[i]]}, Recompensa: {reward}")
 
         return actions_list
+
 
 
 

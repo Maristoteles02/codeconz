@@ -14,7 +14,7 @@ from bots.randbot import RandBot
 from bots.randbot import RandBot
 import engine.engine as engine
 import train
-
+import random
 def generate_randbot_data(num_episodes=10, num_steps=50, output_file="randbot_data.json"):
     """Genera datos usando RandBot y los guarda en un archivo JSON."""
 
@@ -62,9 +62,6 @@ def generate_randbot_data(num_episodes=10, num_steps=50, output_file="randbot_da
     bots[0].save_data(output_file)
 
 if __name__ == "__main__":
-    # os.environ["SDL_VIDEODRIVER"] = "dummy"  # Evita la creación de la ventana gráfica
-    #generate_randbot_data(num_episodes=10, num_steps=50)
-    # Directorio donde se encuentran los mapas generados
     map_dir = "./maps"
 
     # Listar todos los archivos en el directorio que cumplan con el formato esperado
@@ -80,12 +77,16 @@ if __name__ == "__main__":
     # Filtrar mapas restantes para entrenamiento
     remaining_maps = [map for i, map in enumerate(map_files) if i not in evaluation_maps]
 
+    # Mezclar los mapas restantes aleatoriamente
+    random.shuffle(remaining_maps)
+
     # Organizar los mapas restantes en bloques de 20 (18 para entrenamiento, 2 para evaluación)
     train_eval_blocks = []
-    for i in range(1, len(remaining_maps), 20):
+    for i in range(0, len(remaining_maps), 20):  # Iniciar en 0 para cubrir todos los bloques
         train_files = remaining_maps[i:i+18]  # Selecciona 18 mapas para entrenamiento
         block_eval_files = remaining_maps[i+18:i+20]  # Selecciona 2 mapas para evaluación
-        train_eval_blocks.append((train_files, block_eval_files))
+        if train_files:  # Asegurarse de que haya mapas en el bloque
+            train_eval_blocks.append((train_files, block_eval_files))
 
     # Inicializar listas para los archivos de configuración de entrenamiento y evaluación
     cfg_files_train = []
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     # Agregar los mapas de entrenamiento y evaluación con la ruta completa
     for train_files, block_eval_files in train_eval_blocks:
         cfg_files_train.extend([os.path.join(map_dir, f) for f in train_files])
-        cfg_files_eval.extend([os.path.join(map_dir, f) for f in block_eval_files])
+        cfg_files_eval.extend([os.path.join(map_dir, f) for f in block_eval_files if f])
 
     # Agregar los mapas de evaluación fijos con la ruta completa
     cfg_files_eval.extend([os.path.join(map_dir, f) for f in eval_files])
@@ -103,21 +104,22 @@ if __name__ == "__main__":
     print("Mapas seleccionados para evaluación fija:", eval_files)
     print("Archivos de configuración para entrenamiento:", cfg_files_train)
     print("Archivos de configuración para evaluación:", cfg_files_eval)
-
-    NUM_EPISODES = 1 # Number of times to run the game. Game restarts with each new episode.
-    MAX_AGENT_UPDATES = 30 # Number of times to update (optimize parameters) the bot within an episode.
-    NUM_STEPS_POLICY_UPDATE = 12 # Number of experiences to collect for each update to the bot.
-    MAX_TOTAL_UPDATES = NUM_EPISODES * MAX_AGENT_UPDATES
-    TRAIN = True # Whether to run training or evaluation
-    NUM_ENVS = 1 # Number of games to run at once. 
-    MAX_EVALUATION_ROUNDS = 1000 # Number of rounds in a game to evaluate the bot.
-    USE_SAVED_MODEL = True # Whether to start training or evaluation from a previously saved model.
-    MODEL_FILENAME = "ppo_mlp_test.pth" # Name of saved model to start training from and/or to save model to during training.
-    STATE_MAPS = True # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
+    # NUM_EPISODES = 1 # Number of times to run the game. Game restarts with each new episode.
+    # MAX_AGENT_UPDATES = 30 # Number of times to update (optimize parameters) the bot within an episode.
+    # NUM_STEPS_POLICY_UPDATE = 12 # Number of experiences to collect for each update to the bot.
+    # MAX_TOTAL_UPDATES = NUM_EPISODES * MAX_AGENT_UPDATES
+    # TRAIN = True # Whether to run training or evaluation
+    # NUM_ENVS = 1 # Number of games to run at once. 
+    # MAX_EVALUATION_ROUNDS = 1000 # Number of rounds in a game to evaluate the bot.
+    # USE_SAVED_MODEL = True # Whether to start training or evaluation from a previously saved model.
+    # MODEL_FILENAME = "ppo_mlp_test.pth" # Name of saved model to start training from and/or to save model to during training.
+    # STATE_MAPS = True # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
     
     NUM_EPISODES = 100  # Incrementar el número de episodios para entrenar más a fondo.
     MAX_AGENT_UPDATES = 20  # Aumentar el número de actualizaciones del agente por episodio.
     NUM_STEPS_POLICY_UPDATE = 128  # Incrementar los pasos de actualización para una mayor estabilidad.
+    MAX_TOTAL_UPDATES = NUM_EPISODES * MAX_AGENT_UPDATES
+    TRAIN = True  # Whether to run training or evaluation
     NUM_ENVS = 15  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
     MAX_EVALUATION_ROUNDS = 1000  # Evaluar durante más rondas para obtener una evaluación precisa.
     USE_SAVED_MODEL = True #Entrenar desde cero o cambiar a True si tienes un modelo preentrenado.
@@ -127,7 +129,7 @@ if __name__ == "__main__":
     #######################################################################
     # Total number of rounds = MAX_AGENT_UPATES * NUM_STEPS_POLICY_UPDATE #
     #######################################################################
-
+    gc.enable()
     bots = [
             PPO(state_maps=STATE_MAPS,
              num_envs=NUM_ENVS,

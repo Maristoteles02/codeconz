@@ -216,11 +216,11 @@ class PPO(bot.Bot):
         # torch.backends.cudnn.deterministic = self.torch_deterministic
 
         # Initialize tensorboard
-        self.writer = SummaryWriter(f"./artifacts/runs")
-        self.writer.add_text(
-            "hyperparameters",
-            "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(self).items()])),
-        )
+        # self.writer = SummaryWriter(f"./artifacts/runs")
+        # self.writer.add_text(
+        #     "hyperparameters",
+        #     "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(self).items()])),
+        # )
 
     # Initialize agent, optimizer and buffer
     def initialize_game(self, state):
@@ -698,15 +698,15 @@ class PPO(bot.Bot):
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
         # Record losses, learning rate
-        self.writer.add_scalar("charts/learning_rate", self.optimizer.param_groups[0]["lr"], self.global_step)
-        self.writer.add_scalar("losses/value_loss", v_loss.item(), self.global_step)
-        self.writer.add_scalar("losses/policy_loss", pg_loss.item(), self.global_step)
-        self.writer.add_scalar("losses/entropy", entropy_loss.item(), self.global_step)
-        self.writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(), self.global_step)
-        self.writer.add_scalar("losses/approx_kl", approx_kl.item(), self.global_step)
-        self.writer.add_scalar("losses/clipfrac", np.mean(clipfracs), self.global_step)
-        self.writer.add_scalar("losses/explained_variance", explained_var, self.global_step)
-        self.writer.add_scalar("charts/SPS", int(self.global_step / (time.time() - self.start_time)), self.global_step)
+        # self.writer.add_scalar("charts/learning_rate", self.optimizer.param_groups[0]["lr"], self.global_step)
+        # self.writer.add_scalar("losses/value_loss", v_loss.item(), self.global_step)
+        # self.writer.add_scalar("losses/policy_loss", pg_loss.item(), self.global_step)
+        # self.writer.add_scalar("losses/entropy", entropy_loss.item(), self.global_step)
+        # self.writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(), self.global_step)
+        # self.writer.add_scalar("losses/approx_kl", approx_kl.item(), self.global_step)
+        # self.writer.add_scalar("losses/clipfrac", np.mean(clipfracs), self.global_step)
+        # self.writer.add_scalar("losses/explained_variance", explained_var, self.global_step)
+        # self.writer.add_scalar("charts/SPS", int(self.global_step / (time.time() - self.start_time)), self.global_step)
         print("policy loss: ", pg_loss.item())
         print("value loss: ", v_loss.item())
 

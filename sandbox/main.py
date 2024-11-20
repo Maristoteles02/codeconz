@@ -63,7 +63,7 @@ def generate_randbot_data(num_episodes=10, num_steps=50, output_file="randbot_da
 
 if __name__ == "__main__":
     map_dir = "./maps"
-
+    os.environ["SDL_VIDEODRIVER"] = "dummy" 
     # Listar todos los archivos en el directorio que cumplan con el formato esperado
     map_files = sorted([f for f in os.listdir(map_dir) if f.startswith("mapa_") and f.endswith(".txt")])
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     # STATE_MAPS = True # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
     
     NUM_EPISODES = 100  # Incrementar el número de episodios para entrenar más a fondo.
-    MAX_AGENT_UPDATES = 20  # Aumentar el número de actualizaciones del agente por episodio.
+    MAX_AGENT_UPDATES = 4  # Aumentar el número de actualizaciones del agente por episodio.
     NUM_STEPS_POLICY_UPDATE = 128  # Incrementar los pasos de actualización para una mayor estabilidad.
     MAX_TOTAL_UPDATES = NUM_EPISODES * MAX_AGENT_UPDATES
     TRAIN = True  # Whether to run training or evaluation

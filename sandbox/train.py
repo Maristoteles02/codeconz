@@ -245,6 +245,7 @@ class Interface(object):
 
             update += 1
             print(f"Update {update} completo.")
+            bot.save_trained_model()
 
 
     def run(self, max_rounds=None):

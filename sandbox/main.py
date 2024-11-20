@@ -3,7 +3,7 @@
 
 import os
 import sys
-
+import gc
 import pandas as pd
 
 import engine.engine as engine
@@ -62,7 +62,7 @@ def generate_randbot_data(num_episodes=10, num_steps=50, output_file="randbot_da
     bots[0].save_data(output_file)
 
 if __name__ == "__main__":
-    os.environ["SDL_VIDEODRIVER"] = "dummy"  # Evita la creación de la ventana gráfica
+    # os.environ["SDL_VIDEODRIVER"] = "dummy"  # Evita la creación de la ventana gráfica
     #generate_randbot_data(num_episodes=10, num_steps=50)
     # Directorio donde se encuentran los mapas generados
     map_dir = "./maps"
@@ -115,8 +115,8 @@ if __name__ == "__main__":
     MODEL_FILENAME = "ppo_mlp_test.pth" # Name of saved model to start training from and/or to save model to during training.
     STATE_MAPS = True # Set to True to use the state format of maps and architecture CNN and set to False for vector format and architecture MLP
     
-    NUM_EPISODES = 10  # Incrementar el número de episodios para entrenar más a fondo.
-    MAX_AGENT_UPDATES = 10  # Aumentar el número de actualizaciones del agente por episodio.
+    NUM_EPISODES = 100  # Incrementar el número de episodios para entrenar más a fondo.
+    MAX_AGENT_UPDATES = 20  # Aumentar el número de actualizaciones del agente por episodio.
     NUM_STEPS_POLICY_UPDATE = 128  # Incrementar los pasos de actualización para una mayor estabilidad.
     NUM_ENVS = 15  # Ajustar según la capacidad de tu máquina. Más entornos aumentan la eficiencia del entrenamiento.
     MAX_EVALUATION_ROUNDS = 1000  # Evaluar durante más rondas para obtener una evaluación precisa.
@@ -135,22 +135,7 @@ if __name__ == "__main__":
              num_updates=MAX_TOTAL_UPDATES,
              train=TRAIN,
              model_filename = MODEL_FILENAME,
-             use_saved_model=USE_SAVED_MODEL),
-            PPO(state_maps=STATE_MAPS,
-             num_envs=NUM_ENVS,
-             num_steps=NUM_STEPS_POLICY_UPDATE,
-             num_updates=MAX_TOTAL_UPDATES,
-             train=TRAIN,
-             model_filename = MODEL_FILENAME,
-             use_saved_model=USE_SAVED_MODEL),
-            PPO(state_maps=STATE_MAPS,
-             num_envs=NUM_ENVS,
-             num_steps=NUM_STEPS_POLICY_UPDATE,
-             num_updates=MAX_TOTAL_UPDATES,
-             train=TRAIN,
-             model_filename = MODEL_FILENAME,
-             use_saved_model=USE_SAVED_MODEL),
-            PPO(state_maps=STATE_MAPS,
+             use_saved_model=USE_SAVED_MODEL),RandBot(),RandBot(),RandBot(),PPO(state_maps=STATE_MAPS,
              num_envs=NUM_ENVS,
              num_steps=NUM_STEPS_POLICY_UPDATE,
              num_updates=MAX_TOTAL_UPDATES,
@@ -174,6 +159,7 @@ if __name__ == "__main__":
 
                 iface = train.Interface(game, bots, debug=False)
                 iface.train(max_updates=MAX_AGENT_UPDATES, num_steps_update=NUM_STEPS_POLICY_UPDATE)
+            gc.collect()
     
     if not TRAIN:
         for i in range(1, NUM_EPISODES+1):

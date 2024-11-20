@@ -10,7 +10,7 @@ import pygame
 import engine.engine as engine
 import engine.view as view
 
-
+from bots.ppo_2 import PPO
 class CommError(Exception):
     pass
 
@@ -77,7 +77,6 @@ class Interface(object):
                 "view": player_view,
                 "lighthouses": lighthouses
             }
-
             return state
         except: 
             # Lighthouses info extraction
@@ -164,19 +163,21 @@ class Interface(object):
     
 
     def train(self, max_updates=0, num_steps_update=0):
-        # Function for training the bot
+        # Inicializar vistas del juego para cada entorno
         game_view = [view.GameView(self.game[i]) for i in range(len(self.game))]
         update = 0
         round = 0
         running = True
-        
-        while update < max_updates and running: 
-            ###################################
-            # Get experiences to update agent #
-            ###################################
 
+        # Crear un diccionario para almacenar los estados siguientes por bot
+        bot_next_states = {bot: None for bot in self.bots}
+
+        while update < max_updates and running:
+            ###################################
+            # Recolectar experiencias por bot #
+            ###################################
             for step in range(num_steps_update):
-                # Event handler for game engine
+                # Manejar eventos del juego
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
@@ -185,78 +186,66 @@ class Interface(object):
                     self.game[i].pre_round()
                     game_view[i].update()
 
-                player_idx = 0
-                for bot in self.bots:
-                    player = [self.game[i].players[player_idx] for i in range(len(self.game))]
+                for bot_idx, bot in enumerate(self.bots):
+                    # Obtener el jugador asociado al bot
+                    player = self.game[0].players[bot_idx]
 
-                    ####################################################
-                    # If round 0, Get initial state and initialize bot
-                    ####################################################
+                    # Inicializar estado si es la primera ronda
                     if round == 0:
-                        bot.player_num = player[0].num
+                        bot.player_num = player.num
                         bot.map = [self.game[i].island.map for i in range(len(self.game))]
-                        state = [self.get_state(player[i], i) for i in range(len(self.game))]
+                        state = [self.get_state(player, 0)]
                         bot.initialize_game(state)
                     else:
-                        state = next_state
+                        # Recuperar el estado siguiente almacenado específicamente para este bot
+                        state = bot_next_states[bot]
+
                     if step == 0:
                         bot.initialize_experience_gathering()
 
                     ###########################################
-                    # Get action
+                    # Generar acción
                     ###########################################
                     action = bot.play(state, step)
-                    
+                    # Depurar acción antes de ejecutar
                     ###########################################
-                    # Execute action and get rewards and next state
+                    # Ejecutar acción y calcular el siguiente estado
                     ###########################################
-                    status = [self.turn(player[i], action[i]) for i in range(len(self.game))]
+                    status = self.turn(player, action[0])
+                    next_state = [self.get_state(player, 0)]  # Generar el siguiente estado para este bot
 
-                    if self.debug:
-                        try:
-                            bot.error(status["message"], action)
-                        except:
-                            pass
-                    
-                    scores_temp = []
-                    for i in range(len(self.game)):         
-                        scores_temp.append(player[i].score)
-                        game_view[i].update()
-                    
-                    bot.scores.append(scores_temp)
-                    next_state = [self.get_state(player[i], i) for i in range(len(self.game))]
-                    reward = [self.estimate_reward(action[i], state[i], next_state[i], player[i], status[i], bot.scores, i) for i in range(len(self.game))]
+                    # Almacenar el estado siguiente para este bot
+                    bot_next_states[bot] = next_state
+
+                    ###########################################
+                    # Calcular recompensa
+                    ###########################################
+                    reward = self.estimate_reward(action[0], state[0], next_state[0], player, status, bot.scores, 0)
+
+                    # Guardar transición
                     transition = [state, action, reward, next_state]
                     bot.transitions.append(transition)
                     bot.transitions_temp.append(transition)
 
-                    player_idx += 1
-                
+                    # Actualizar puntuación del bot
+                    bot.scores.append([player.score for player in self.game[0].players])
+
                 for i in range(len(self.game)):
                     self.game[i].post_round()
 
                 round += 1
-            
-            update += 1
-            bot.update += 1
-            print("update", bot.update)
-                
+
             ###########################################
-            # Optimize models
+            # Optimizar modelos
             ###########################################
             for bot in self.bots:
-                bot.optimize_model(bot.transitions_temp)
-                bot.transitions_temp = []
-            
-                policy_loss = pd.DataFrame()
-                policy_loss[str(bot.player_num)] = bot.policy_loss_list
-            # Identificar el mejor bot
-            best_bot = max(self.bots, key=lambda bot: max(bot.scores[-1]))  # Mejor bot según puntuación
+                if isinstance(bot, PPO):
+                    bot.optimize_model(bot.transitions_temp)
+                    bot.transitions_temp = []
 
-            # Guardar modelo del mejor bot
-            best_bot_model_path = os.path.join('./artifacts/models', f'ppo_mlp_long_training.pth')
-            best_bot.save_trained_model()
-            print(f"Mejor modelo guardado en el episodio {update}: {best_bot_model_path}")
+            update += 1
+            print(f"Update {update} completo.")
+
 
     def run(self, max_rounds=None):
         # Function for evaluating the bot

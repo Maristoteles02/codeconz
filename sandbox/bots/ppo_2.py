@@ -215,7 +215,7 @@ class PPO(bot.Bot):
         # torch.manual_seed(self.seed)
         # torch.backends.cudnn.deterministic = self.torch_deterministic
 
-        # Initialize tensorboard
+        # # Initialize tensorboard
         # self.writer = SummaryWriter(f"./artifacts/runs")
         # self.writer.add_text(
         #     "hyperparameters",
@@ -532,18 +532,18 @@ class PPO(bot.Bot):
             elif ACTIONS[action[i]] == "connect":
                 if (cx,cy) in lighthouses:
                     current_lighthouses = lighthouses[(cx,cy)]
-                    reward*= 120
+                    reward+= 120
                 possible_connections = self.valid_lighthouse_connections(state[i])
                 if possible_connections:
                     destination = random.choice(possible_connections)
                     actions_list.append(self.connect(destination))
-                    reward += 300.0  # Recompensa base
+                    reward += 200.0  # Recompensa base
                     if len(controlled_lighthouses) >= 2:
                         reward += 500.0  # Bonificación por triángulo
                     reward += 50.0 * len(controlled_lighthouses)
                 else:
                     actions_list.append(self.nop())
-                    reward -= 50.0  # Penalización por no conectar
+                    reward -= 10.0  # Penalización por no conectar
 
             # ------------------
             # Ataque a Faros
@@ -578,8 +578,6 @@ class PPO(bot.Bot):
             reward = np.clip(reward, -1000, 1000)
             if self.train:
                 self.rewards[step, i] = reward
-            if ACTIONS[action[i]] in ('connect','attack'):  
-                print(f"Turno {step}, Acción: {ACTIONS[action[i]]}, Recompensa: {reward}")
 
         return actions_list
 
@@ -614,7 +612,7 @@ class PPO(bot.Bot):
                         next_return = self.returns[t + 1]
                     self.returns[t] = self.rewards[t] + self.gamma * nextnonterminal * next_return
                 self.advantages = self.returns - self.values
-            print("advantages: ", self.advantages.sum(axis=0))
+            # print("advantages: ", self.advantages.sum(axis=0))
 
     def optimize_model(self, transitions):
         # flatten the batch
@@ -628,7 +626,7 @@ class PPO(bot.Bot):
         self.rewards = torch.zeros((self.num_steps, self.num_envs)).to(device)
         for i in range(len(transitions)):
             self.rewards[i] = torch.tensor(transitions[i][2]).to(device).view(-1)
-        print("rewards: ", self.rewards.sum(axis=0))
+        # print("rewards: ", self.rewards.sum(axis=0))
         self.calculate_advantage(next_obs)
         if self.state_maps:
             b_obs = self.obs.reshape((-1,) + self.s_size)

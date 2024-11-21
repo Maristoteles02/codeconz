@@ -242,10 +242,14 @@ class Interface(object):
                 if isinstance(bot, PPO):
                     bot.optimize_model(bot.transitions_temp)
                     bot.transitions_temp = []
-
-            update += 1
-            print(f"Update {update} completo.")
-            bot.save_trained_model()
+                    policy_loss = pd.DataFrame()
+                    policy_loss[str(bot.player_num)] = bot.policy_loss_list
+            # Identificar el mejor bot
+            best_bot = max(self.bots, key=lambda bot: max(bot.scores[-1]))  # Mejor bot según puntuación
+            # Guardar modelo del mejor bot
+            best_bot_model_path = os.path.join('./artifacts/models', f'ppo_mlp_long_training.pth')
+            best_bot.save_trained_model()
+            print(f"Mejor modelo guardado en el episodio {update}: {best_bot_model_path}")
 
 
     def run(self, max_rounds=None):

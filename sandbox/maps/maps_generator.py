@@ -41,7 +41,7 @@ def generar_varios_mapas(cantidad=100, filas=23, columnas=43, num_indicaciones=1
     # Crear un directorio para almacenar los mapas generados
     os.makedirs("mapas_generados", exist_ok=True)
     
-    for i in range(0, cantidad + 1):
+    for i in range(20, cantidad + 21):
         mapa = generar_mapa(filas, columnas, num_indicaciones, num_ubicaciones, densidad_paredes)
         nombre_archivo = f"mapa_{i}.txt"
         with open(nombre_archivo, "w") as f:
@@ -51,9 +51,9 @@ def generar_varios_mapas(cantidad=100, filas=23, columnas=43, num_indicaciones=1
 # Parámetros para la generación de los mapas
 filas = 23
 columnas = 43
-num_indicaciones =50
-num_ubicaciones = 7
+num_indicaciones =35
+num_ubicaciones = 10
 densidad_paredes = 0.20
 
 # Generar 100 mapas
-generar_varios_mapas(15, filas, columnas, num_indicaciones, num_ubicaciones, densidad_paredes)
+generar_varios_mapas(20, filas, columnas, num_indicaciones, num_ubicaciones, densidad_paredes)
